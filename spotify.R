@@ -1,3 +1,4 @@
+library(spotifyr)
 library(tidyverse)
 library(ggrepel)
 library(ggtext)
@@ -5,6 +6,7 @@ library(lemon)
 library(mdthemes)
 library(shiny)
 library(glue)
+library(gganimate)
 
 Sys.setenv(SPOTIFY_CLIENT_ID = 'XXXXXXXXXXXXXXX')
 Sys.setenv(SPOTIFY_CLIENT_SECRET = 'XXXXXXXXXXXXXXX')
@@ -85,7 +87,9 @@ playlist_features <- playlist_features_raw %>%
   pivot_longer(danceability:valence, "feature", "mean") %>% 
   mutate(Time = paste(Month, Year),
          Time = fct_inorder(Time),
-         feature = str_to_title(feature))
+         Time = fct_relevel(Time, "Aug 2014"),
+         feature = str_to_title(feature)) %>% 
+  arrange(Time)
 
 # by month
 monthly_ft_plot <- playlist_features %>% 
@@ -99,6 +103,21 @@ monthly_ft_plot <- playlist_features %>%
   guides(color = guide_legend(override.aes = list(alpha = 1))) +
   theme(legend.position = c(.07, .8),
         text = element_text(size = 16))
+
+monthly_fT_animate <- playlist_features %>% 
+  ggplot(aes(feature, value)) +
+  geom_line(aes(group = Time, color = Year),
+            size = 1, show.legend = FALSE) +
+  scale_colour_viridis_d() +
+  labs(title = '{unique(playlist_features$Time)[as.integer(frame_time)]}',
+       x = "", y = "") +
+  theme(text = element_text(size = 16)) +
+  transition_time(as.numeric(Time)) +
+  shadow_mark(past = T, alpha = .1)
+
+# animate(monthly_fT_animate, fps = 9, duration = 8)
+
+
 
 # by year
 yearly_ft_plot <- playlist_features %>% 
@@ -127,7 +146,7 @@ quarterly_ft <- playlist_features %>%
 
 quarterly_ft_plot <- quarterly_ft %>% 
   group_by(SchoolYear, Quarter, feature) %>% 
-  summarize(value = mean(value))
+  summarize(value = mean(value)) %>% 
   ggplot(aes(feature, value)) +
   geom_line(aes(group = Quarter, color = Quarter)) +
   facet_rep_wrap(~SchoolYear) +
@@ -174,6 +193,23 @@ top_songs_plot <- top_songs %>%
   theme(legend.position = 0,
         text = element_text(size = 12))
 
+
+
+# Aggregate
+average_table <- bind_rows(
+  playlist_features,
+  top_songs
+) %>% 
+  select(features) %>% 
+  distinct() %>% 
+  unnest(features) %>% 
+  summarize_if(is.double, ~mean(.x, na.rm = TRUE))
+
+
+
+
+
+# for additional analysis
 top_songs_nested <- top_songs %>% 
   group_by(Year, Song) %>% 
   nest()
@@ -181,11 +217,11 @@ top_songs_nested <- top_songs %>%
 
 
 # Tempo
-quarterly_ft %>% 
-  select(SchoolYear, Quarter, tempo) %>% 
-  group_by(SchoolYear, Quarter) %>% 
-  distinct() %>% 
-  summarize(tempo_mean = mean(tempo), tempo_sd = sd(tempo)) %>% 
-  ggplot(aes(Quarter, tempo_mean)) +
-  geom_line(aes(group = SchoolYear, color = SchoolYear)) +
-  scale_color_viridis_d()
+# quarterly_ft %>% 
+#   select(SchoolYear, Quarter, tempo) %>% 
+#   group_by(SchoolYear, Quarter) %>% 
+#   distinct() %>% 
+#   summarize(tempo_mean = mean(tempo), tempo_sd = sd(tempo)) %>% 
+#   ggplot(aes(Quarter, tempo_mean)) +
+#   geom_line(aes(group = SchoolYear, color = SchoolYear)) +
+#   scale_color_viridis_d()
